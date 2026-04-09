@@ -20,5 +20,8 @@ def add_job(reminder_id, cron_expr, email, message):
         replace_existing=True
     )
 
-def remove_job(reminder_id):
-    scheduler.remove_job(str(reminder_id))
+def remove_job(reminder_id: str):
+    try:
+        scheduler.remove_job(reminder_id)
+    except Exception:
+        pass  # job may not exist
