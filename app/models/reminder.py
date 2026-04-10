@@ -12,3 +12,4 @@ class Reminder(Base):
     message = Column(String)
     email_enabled = Column(Boolean, default=True)
     active = Column(Boolean, default=True)
+    reminder_type = Column(String, default="custom")
