@@ -52,11 +52,6 @@ def verify_otp(email: str, otp: str, password: str, db: Session = Depends(get_db
     if not record:
         raise HTTPException(status_code=400, detail="Invalid OTP")
 
-    if record.created_at < datetime.utcnow() - timedelta(minutes=5):
-        db.delete(record)
-        db.commit()
-        raise HTTPException(status_code=400, detail="OTP expired")
-
     db.delete(record)
 
     user = db.query(User).filter_by(email=email).first()
