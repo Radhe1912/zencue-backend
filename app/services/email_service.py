@@ -189,6 +189,7 @@ def build_template(
 
 def send_via_resend(to_email, subject, html_content, text_content):
     if not RESEND_API_KEY:
+        print("Resend API key is missing.")
         return False
 
     payload = {
@@ -205,6 +206,7 @@ def send_via_resend(to_email, subject, html_content, text_content):
         headers={
             "Authorization": f"Bearer {RESEND_API_KEY}",
             "Content-Type": "application/json",
+            "User-Agent": "ZenCue/1.0",
         },
         method="POST",
     )
@@ -212,50 +214,22 @@ def send_via_resend(to_email, subject, html_content, text_content):
     try:
         with urllib.request.urlopen(req, timeout=15) as response:
             response.read()
-        print("Email sent via Resend")
+        print("Email sent successfully via Resend API.")
         return True
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="ignore")
-        print("Email API error:", e.code, body)
+        print(f"Resend API HTTP error {e.code}: {body}")
+    except urllib.error.URLError as e:
+        print(f"Resend API URL error: {e.reason}")
     except Exception as e:
-        print("Email API error:", e)
+        print(f"Unexpected error while sending email: {e}")
 
     return False
 
 
-def send_via_smtp(to_email, subject, html_content, text_content):
-    if not EMAIL_USER or not EMAIL_PASSWORD:
-        print("Email SMTP skipped: missing EMAIL_USER or EMAIL_PASSWORD")
-        return False
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = EMAIL_USER
-    msg["To"] = to_email
-
-    msg.attach(MIMEText(text_content, "plain", "utf-8"))
-    msg.attach(MIMEText(html_content, "html", "utf-8"))
-
-    socket.setdefaulttimeout(10)
-
-    try:
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-        server.connect("smtp.gmail.com", 465)
-        server.login(EMAIL_USER, EMAIL_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        print("Email sent via SMTP")
-        return True
-    except Exception as e:
-        print("Email SMTP error:", e)
-        return False
-
-
 def send_html_email(to_email, subject, html_content, text_content):
-    if send_via_resend(to_email, subject, html_content, text_content):
-        return True
-
-    return send_via_smtp(to_email, subject, html_content, text_content)
+    # Removed SMTP fallback, relying solely on Resend API
+    return send_via_resend(to_email, subject, html_content, text_content)
 
 
 def send_otp_email(to_email, otp):
