@@ -1,7 +1,10 @@
 import html
+import json
 import os
 import smtplib
 import socket
+import urllib.error
+import urllib.request
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -13,6 +16,8 @@ load_dotenv()
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 APP_URL = os.getenv("APP_URL", "http://localhost:5173")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", EMAIL_USER or "onboarding@resend.dev")
 
 REMINDER_THEMES = {
     "water": {
@@ -182,7 +187,47 @@ def build_template(
     """
 
 
-def send_html_email(to_email, subject, html_content, text_content):
+def send_via_resend(to_email, subject, html_content, text_content):
+    if not RESEND_API_KEY:
+        return False
+
+    payload = {
+        "from": RESEND_FROM_EMAIL,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_content,
+        "text": text_content,
+    }
+
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=15) as response:
+            response.read()
+        print("Email sent via Resend")
+        return True
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="ignore")
+        print("Email API error:", e.code, body)
+    except Exception as e:
+        print("Email API error:", e)
+
+    return False
+
+
+def send_via_smtp(to_email, subject, html_content, text_content):
+    if not EMAIL_USER or not EMAIL_PASSWORD:
+        print("Email SMTP skipped: missing EMAIL_USER or EMAIL_PASSWORD")
+        return False
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = EMAIL_USER
@@ -199,11 +244,18 @@ def send_html_email(to_email, subject, html_content, text_content):
         server.login(EMAIL_USER, EMAIL_PASSWORD)
         server.send_message(msg)
         server.quit()
-
-        print("Email sent")
-
+        print("Email sent via SMTP")
+        return True
     except Exception as e:
-        print("Email error:", e)
+        print("Email SMTP error:", e)
+        return False
+
+
+def send_html_email(to_email, subject, html_content, text_content):
+    if send_via_resend(to_email, subject, html_content, text_content):
+        return
+
+    send_via_smtp(to_email, subject, html_content, text_content)
 
 
 def send_otp_email(to_email, otp):
