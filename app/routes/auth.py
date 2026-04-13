@@ -52,7 +52,7 @@ def send_otp(email: str, db: Session = Depends(get_db)):
         db.commit()
         raise HTTPException(
             status_code=503,
-            detail="OTP delivery is unavailable on this deployment right now. Existing users can still sign in with password."
+            detail="OTP delivery is unavailable for this email on the current demo deployment. Existing users can still sign in with password."
         )
 
     return {
