@@ -19,6 +19,8 @@ def get_db():
 @router.post("/")
 def create_reminder(data: dict, db: Session = Depends(get_db)):
     user = db.query(User).filter_by(id=data["user_id"]).first()
+    if not user:
+        return {"message": "User not found"}
 
     reminder = Reminder(
         user_id=data["user_id"],
@@ -53,6 +55,7 @@ def get_user_reminders(user_id: UUID, db: Session = Depends(get_db)):
             "cron_expression": r.cron_expression,
             "active": r.active,
             "reminder_type": r.reminder_type,
+            "user_id": str(r.user_id),
         }
         for r in reminders
     ]

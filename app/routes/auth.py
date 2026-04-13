@@ -26,7 +26,10 @@ def send_otp(email: str, db: Session = Depends(get_db)):
     user = db.query(User).filter_by(email=email).first()
 
     if user and user.is_verified:
-        return {"is_existing": True}
+        return {
+            "is_existing": True,
+            "message": "Account found. Please sign in with your password."
+        }
 
     otp_code = str(random.randint(100000, 999999))
 
@@ -43,7 +46,10 @@ def send_otp(email: str, db: Session = Depends(get_db)):
 
     send_otp_email(email, otp_code)
 
-    return {"message": "OTP sent"}
+    return {
+        "is_existing": False,
+        "message": "Verification code sent. Complete setup to create your account."
+    }
 
 @router.post("/verify-otp")
 def verify_otp(email: str, otp: str, password: str, db: Session = Depends(get_db)):
@@ -119,4 +125,18 @@ def login(email: str, password: str, db: Session = Depends(get_db)):
     return {
         "message": "Login success",
         "user_id": str(user.id)
+    }
+
+
+@router.get("/session/{user_id}")
+def get_session(user_id: str, db: Session = Depends(get_db)):
+    user = db.query(User).filter_by(id=user_id).first()
+
+    if not user or not user.is_verified:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return {
+        "user_id": str(user.id),
+        "email": user.email,
+        "is_verified": user.is_verified,
     }
