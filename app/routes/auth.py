@@ -1,5 +1,6 @@
 import random
 from datetime import datetime, timedelta
+from uuid import UUID
 from app.services.email_service import send_otp_email
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -129,8 +130,8 @@ def login(email: str, password: str, db: Session = Depends(get_db)):
 
 
 @router.get("/session/{user_id}")
-def get_session(user_id: str, db: Session = Depends(get_db)):
-    user = db.query(User).filter_by(id=user_id).first()
+def get_session(user_id: UUID, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
 
     if not user or not user.is_verified:
         raise HTTPException(status_code=404, detail="Session not found")
