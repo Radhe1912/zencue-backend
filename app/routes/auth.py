@@ -45,7 +45,15 @@ def send_otp(email: str, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_otp)
 
-    send_otp_email(email, otp_code)
+    email_sent = send_otp_email(email, otp_code)
+
+    if not email_sent:
+        db.delete(new_otp)
+        db.commit()
+        raise HTTPException(
+            status_code=503,
+            detail="OTP delivery is unavailable on this deployment right now. Existing users can still sign in with password."
+        )
 
     return {
         "is_existing": False,

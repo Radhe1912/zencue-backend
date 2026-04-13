@@ -253,9 +253,9 @@ def send_via_smtp(to_email, subject, html_content, text_content):
 
 def send_html_email(to_email, subject, html_content, text_content):
     if send_via_resend(to_email, subject, html_content, text_content):
-        return
+        return True
 
-    send_via_smtp(to_email, subject, html_content, text_content)
+    return send_via_smtp(to_email, subject, html_content, text_content)
 
 
 def send_otp_email(to_email, otp):
@@ -293,7 +293,7 @@ def send_otp_email(to_email, otp):
         "You only need OTP during first-time account setup."
     )
 
-    send_html_email(to_email, "ZenCue OTP Verification", html_content, text_content)
+    return send_html_email(to_email, "ZenCue OTP Verification", html_content, text_content)
 
 
 def send_reminder_email(to_email, message, reminder_type="custom"):
@@ -351,4 +351,4 @@ def send_reminder_email(to_email, message, reminder_type="custom"):
         f"{text_steps}"
     )
 
-    send_html_email(to_email, "ZenCue Reminder", html_content, text_content)
+    return send_html_email(to_email, "ZenCue Reminder", html_content, text_content)
