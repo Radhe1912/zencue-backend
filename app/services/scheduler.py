@@ -3,18 +3,23 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.date import DateTrigger
 
-from app.services.email_service import send_reminder_email
+from app.core.database import SessionLocal
 from app.services.messages import get_random_message
+from app.services.push_service import send_push_to_user
 
 
 scheduler = BackgroundScheduler()
 scheduler.start()
 
 
-def add_job(reminder_id, cron_expr, email, message, reminder_type):
+def add_job(reminder_id, cron_expr, user_id, message, reminder_type):
     def task():
         final_message = get_random_message(reminder_type, message)
-        send_reminder_email(email, final_message, reminder_type)
+        db = SessionLocal()
+        try:
+            send_push_to_user(db, user_id, final_message, reminder_type)
+        finally:
+            db.close()
 
     if cron_expr.startswith("ONCE|"):
         run_at = datetime.fromisoformat(cron_expr.split("|", 1)[1])

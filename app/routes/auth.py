@@ -1,15 +1,10 @@
-import random
-from datetime import datetime, timedelta
-from uuid import UUID
-from app.services.email_service import send_otp_email
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
+from uuid import UUID
 
 from app.core.database import SessionLocal
 from app.models.user import User
-from app.models.otp import OTP
+from app.schemas.user import AuthRequest
 from app.utils.security import hash_password, verify_password
 
 router = APIRouter(prefix="/auth")
@@ -22,114 +17,75 @@ def get_db():
     finally:
         db.close()
 
-@router.post("/send-otp")
-def send_otp(email: str, db: Session = Depends(get_db)):
-    user = db.query(User).filter_by(email=email).first()
 
-    if user and user.is_verified:
-        return {
-            "is_existing": True,
-            "message": "Account found. Please sign in with your password."
-        }
+def normalize_email(raw_email: str) -> str:
+    email = raw_email.strip().lower()
+    if "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="Enter a valid email address.")
+    return email
 
-    otp_code = str(random.randint(100000, 999999))
 
-    db.query(OTP).filter(OTP.email == email).delete()
+def validate_password(password: str) -> str:
+    cleaned_password = password.strip()
+    if len(cleaned_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+    return cleaned_password
 
-    new_otp = OTP(
-        email=email,
-        otp=otp_code
-    )
 
-    db.add(new_otp)
-    db.commit()
-    db.refresh(new_otp)
-
-    email_sent = send_otp_email(email, otp_code)
-
-    if not email_sent:
-        db.delete(new_otp)
-        db.commit()
-        raise HTTPException(
-            status_code=503,
-            detail="OTP delivery is unavailable for this email on the current demo deployment. Existing users can still sign in with password."
-        )
-
-    return {
-        "is_existing": False,
-        "message": "Verification code sent. Complete setup to create your account."
-    }
-
-@router.post("/verify-otp")
-def verify_otp(email: str, otp: str, password: str, db: Session = Depends(get_db)):
-    record = db.query(OTP).filter_by(email=email, otp=otp).first()
-
-    if not record:
-        raise HTTPException(status_code=400, detail="Invalid OTP")
-
-    db.delete(record)
+@router.post("/register")
+def register(payload: AuthRequest, db: Session = Depends(get_db)):
+    email = normalize_email(payload.email)
+    password = validate_password(payload.password)
 
     user = db.query(User).filter_by(email=email).first()
+
+    if user and user.password:
+        raise HTTPException(status_code=409, detail="An account with this email already exists.")
 
     if user:
         user.password = hash_password(password)
         user.is_verified = True
-
         db.commit()
         db.refresh(user)
-
         return {
-            "message": "User updated",
+            "message": "Account ready",
             "user_id": str(user.id)
         }
 
-    try:
-        new_user = User(
-            email=email,
-            password=hash_password(password),
-            is_verified=True
-        )
+    new_user = User(
+        email=email,
+        password=hash_password(password),
+        is_verified=True,
+    )
 
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
 
-        return {
-            "message": "User created",
-            "user_id": str(new_user.id)
-        }
-
-    except IntegrityError:
-        db.rollback()
-
-        user = db.query(User).filter_by(email=email).first()
-
-        if user:
-            user.password = hash_password(password)
-            user.is_verified = True
-
-            db.commit()
-            db.refresh(user)
-
-            return {
-                "message": "User updated (fallback)",
-                "user_id": str(user.id)
-            }
-
-        raise HTTPException(status_code=500, detail="User creation failed")
+    return {
+        "message": "Account created",
+        "user_id": str(new_user.id)
+    }
 
 @router.post("/login")
-def login(email: str, password: str, db: Session = Depends(get_db)):
+def login(payload: AuthRequest, db: Session = Depends(get_db)):
+    email = normalize_email(payload.email)
+    password = validate_password(payload.password)
+
     user = db.query(User).filter_by(email=email).first()
 
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User not found.")
 
     if not user.password:
-        raise HTTPException(status_code=400, detail="User not verified")
+        raise HTTPException(status_code=400, detail="This account needs a password. Create it first.")
 
     if not verify_password(password, user.password):
-        raise HTTPException(status_code=400, detail="Wrong password")
+        raise HTTPException(status_code=400, detail="Wrong password.")
+
+    if not user.is_verified:
+        user.is_verified = True
+        db.commit()
 
     return {
         "message": "Login success",
@@ -141,7 +97,7 @@ def login(email: str, password: str, db: Session = Depends(get_db)):
 def get_session(user_id: UUID, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
 
-    if not user or not user.is_verified:
+    if not user or not user.password:
         raise HTTPException(status_code=404, detail="Session not found")
 
     return {

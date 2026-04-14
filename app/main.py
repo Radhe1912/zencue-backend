@@ -5,10 +5,9 @@ import app.models
 from app.services.scheduler import scheduler
 from app.core.database import SessionLocal
 from app.models.reminder import Reminder
-from app.models.user import User
 from app.services.scheduler import add_job
 
-from app.routes import auth, reminder
+from app.routes import auth, push, reminder
 
 app = FastAPI()
 
@@ -23,6 +22,7 @@ app.add_middleware(
 Base.metadata.create_all(bind=engine)
 
 app.include_router(auth.router)
+app.include_router(push.router)
 app.include_router(reminder.router)
 
 
@@ -39,14 +39,10 @@ def start_scheduler():
     try:
         reminders = db.query(Reminder).filter(Reminder.active == True).all()
         for reminder in reminders:
-            user = db.query(User).filter_by(id=reminder.user_id).first()
-            if not user:
-                continue
-
             add_job(
                 str(reminder.id),
                 reminder.cron_expression,
-                user.email,
+                reminder.user_id,
                 reminder.message,
                 reminder.reminder_type,
             )
