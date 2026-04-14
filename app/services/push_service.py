@@ -35,7 +35,9 @@ def is_push_configured() -> bool:
     return bool(webpush and VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY)
 
 
-def get_vapid_public_key() -> str | None:
+from typing import Optional
+
+def get_vapid_public_key() -> Optional[str]:
     return VAPID_PUBLIC_KEY
 
 
